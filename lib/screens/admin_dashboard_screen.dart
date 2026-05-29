@@ -12,6 +12,9 @@ import 'package:nhom2_quanlythietbichothue/screens/equipment_form_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/customer_form_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/contract_form_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/statistics_report_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/damage_report_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/maintenance_management_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/contract_extension_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -237,6 +240,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
         ),
+        _buildQuickActionButton(
+          context,
+          'Báo hỏng',
+          Icons.report_problem_outlined,
+          AppTheme.errorColor,
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const DamageReportScreen()),
+          ),
+        ),
+        _buildQuickActionButton(
+          context,
+          'Bảo trì',
+          Icons.home_repair_service_outlined,
+          AppTheme.infoColor,
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MaintenanceManagementScreen(),
+            ),
+          ),
+        ),
+        _buildQuickActionButton(
+          context,
+          'Gia hạn HĐ',
+          Icons.event_repeat_outlined,
+          AppTheme.successColor,
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  const ContractExtensionScreen(canApprove: true),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -361,6 +399,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         appBar: AppBar(title: const Text('Danh sách hợp đồng')),
                         body: const RentalListScreen(),
                       ),
+                    ),
+                  ),
+                ),
+                _buildDrawerItem(
+                  context,
+                  Icons.report_problem_outlined,
+                  'Báo cáo hỏng hóc',
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const DamageReportScreen(),
+                    ),
+                  ),
+                ),
+                _buildDrawerItem(
+                  context,
+                  Icons.home_repair_service_outlined,
+                  'Quản lý bảo trì',
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MaintenanceManagementScreen(),
+                    ),
+                  ),
+                ),
+                _buildDrawerItem(
+                  context,
+                  Icons.event_repeat_outlined,
+                  'Gia hạn hợp đồng',
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          const ContractExtensionScreen(canApprove: true),
                     ),
                   ),
                 ),

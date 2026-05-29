@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
 import 'package:nhom2_quanlythietbichothue/models/equipment.dart';
-import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
 
 class ContractFormScreen extends StatefulWidget {
   // THÊM: Biến nhận dữ liệu thiết bị từ Dashboard truyền sang
@@ -171,7 +170,7 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: selectedCustomerId,
+                  initialValue: selectedCustomerId,
                   hint: const Text('Chọn khách hàng thuê'),
                   decoration: _inputDecoration(Icons.business),
                   items: customers.map((c) {

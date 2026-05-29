@@ -98,7 +98,7 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
 
               // === DANH MỤC THIẾT BỊ ===
               DropdownButtonFormField<String>(
-                value: _selectedCategoryId,
+                initialValue: _selectedCategoryId,
                 decoration: _inputDecoration(
                   'Danh mục thiết bị',
                   Icons.category,

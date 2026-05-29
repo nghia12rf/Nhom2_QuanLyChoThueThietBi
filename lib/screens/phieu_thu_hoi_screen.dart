@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
-import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
+import 'package:nhom2_quanlythietbichothue/widgets/vietnamese_text_field.dart';
 
 class PhieuThuHoiScreen extends StatefulWidget {
   final Map<String, dynamic> equipment;
@@ -93,11 +93,9 @@ class _PhieuThuHoiScreenState extends State<PhieuThuHoiScreen> {
                     ),
                     keyboardType: TextInputType.number,
                   ),
-                  TextField(
+                  VietnameseTextField(
                     controller: _noteController,
-                    decoration: const InputDecoration(
-                      labelText: 'Mô tả hư hỏng',
-                    ),
+                    labelText: 'Mô tả hư hỏng',
                     maxLines: 3,
                   ),
                 ],

@@ -17,7 +17,7 @@ class _CameraScreenState extends State<CameraScreen> {
   late Future<void> _initializeControllerFuture;
 
   bool _isTakingPicture = false;
-  List<String> _uploadedImageUrls = [];
+  final List<String> _uploadedImageUrls = [];
 
   @override
   void initState() {

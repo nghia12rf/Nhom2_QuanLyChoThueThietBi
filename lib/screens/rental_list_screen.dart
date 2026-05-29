@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
-import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
 import 'package:nhom2_quanlythietbichothue/screens/return_equipment_screen.dart';
 
 class RentalListScreen extends StatefulWidget {

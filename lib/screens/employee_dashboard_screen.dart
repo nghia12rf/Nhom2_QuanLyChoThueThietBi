@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
-import 'package:nhom2_quanlythietbichothue/widgets/common_widgets.dart';
 import 'package:nhom2_quanlythietbichothue/screens/equipment_detail_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/camera_screen.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
 import 'package:nhom2_quanlythietbichothue/models/equipment.dart';
 import 'package:nhom2_quanlythietbichothue/screens/contract_form_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/phieu_thu_hoi_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/damage_report_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/contract_extension_screen.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -193,6 +194,28 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   // Chức năng phát triển sau
                   Navigator.pop(context);
                 }),
+                _drawerItem(
+                  Icons.report_problem_outlined,
+                  'Báo cáo hỏng hóc',
+                  () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DamageReportScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _drawerItem(Icons.event_repeat_outlined, 'Yêu cầu gia hạn', () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ContractExtensionScreen(),
+                    ),
+                  );
+                }),
                 _drawerItem(Icons.help_outline, 'Hướng dẫn sử dụng', () {
                   Navigator.pop(context);
                 }),
@@ -290,9 +313,9 @@ class _DashboardViewState extends State<DashboardView> {
                   final status = item['trangThai'] ?? '';
                   final count = (item['soLuong'] as num?)?.toInt() ?? 0;
 
-                  if (status == 'SanSang')
+                  if (status == 'SanSang') {
                     ready = count;
-                  else if (status == 'DangChoThue')
+                  } else if (status == 'DangChoThue')
                     rented = count;
                   else if (status == 'BaoTri')
                     maintenance = count;

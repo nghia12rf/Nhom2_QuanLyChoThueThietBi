@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
 import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
-import 'dart:io'; // cho File (mobile) – web sẽ không dùng File
+import 'package:nhom2_quanlythietbichothue/widgets/vietnamese_text_field.dart';
+// cho File (mobile) – web sẽ không dùng File
 
 class ReturnEquipmentScreen extends StatefulWidget {
   final String contractId;
@@ -15,7 +16,7 @@ class _ReturnEquipmentScreenState extends State<ReturnEquipmentScreen> {
   final _damageNoteController = TextEditingController();
   bool _isDamaged = false;
   bool _isSubmitting = false;
-  List<String> _imageUrls = [];
+  final List<String> _imageUrls = [];
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -128,12 +129,9 @@ class _ReturnEquipmentScreenState extends State<ReturnEquipmentScreen> {
               onChanged: (val) => setState(() => _isDamaged = val),
             ),
             if (_isDamaged) ...[
-              TextField(
+              VietnameseTextField(
                 controller: _damageNoteController,
-                decoration: const InputDecoration(
-                  labelText: 'Mô tả tình trạng hỏng hóc',
-                  border: OutlineInputBorder(),
-                ),
+                labelText: 'Mô tả tình trạng hỏng hóc',
                 maxLines: 2,
               ),
               const SizedBox(height: 8),
