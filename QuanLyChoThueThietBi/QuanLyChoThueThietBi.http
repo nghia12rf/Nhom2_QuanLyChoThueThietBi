@@ -1,0 +1,6 @@
+@QuanLyChoThueThietBi_HostAddress = http://localhost:5047
+
+GET {{QuanLyChoThueThietBi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
