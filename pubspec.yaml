@@ -1,0 +1,37 @@
+name: nhom2_quanlythietbichothue
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.10.7 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Map and location packages
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+  geolocator: ^10.1.0
+
+  # Camera package
+  camera: ^0.12.0+1
+  permission_handler: ^12.0.1
+
+  # Storage and HTTP packages
+  shared_preferences: ^2.2.2
+  http: ^1.1.0
+  image_picker: ^1.0.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
