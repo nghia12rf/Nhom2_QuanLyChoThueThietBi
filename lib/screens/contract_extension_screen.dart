@@ -90,6 +90,21 @@ class _ContractExtensionScreenState extends State<ContractExtensionScreen> {
     ContractExtension extension,
     String status,
   ) async {
+    if (status == 'Đã duyệt') {
+      try {
+        final body = {
+          'maHopDong': extension.contractId,
+          'ngayKetThucMoi': extension.newEndDate.toIso8601String(),
+          'lyDoGiaHan': extension.reason,
+        };
+        await ApiService().post('/GiaHan', body);
+        _showMessage('Đã duyệt gia hạn và cập nhật hợp đồng trên hệ thống!');
+      } catch (e) {
+        _showMessage('Lỗi khi duyệt gia hạn trên hệ thống: ${e.toString().replaceAll('Exception:', '').trim()}');
+        return; // Không cập nhật trạng thái offline nếu backend thất bại
+      }
+    }
+
     await _operationsService.updateContractExtension(
       extension.copyWith(status: status),
     );

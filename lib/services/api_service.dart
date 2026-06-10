@@ -114,26 +114,47 @@ class ApiService {
 
   /// Hàm xử lý tập trung tất cả các Status Code từ Server
   dynamic _handleResponse(http.Response response) {
+    // Giải mã chuỗi UTF-8 từ bytes để tránh lỗi font tiếng Việt khi hiển thị lỗi
+    String responseBodyString = '';
+    try {
+      responseBodyString = utf8.decode(response.bodyBytes);
+    } catch (_) {
+      responseBodyString = response.body; // Fallback nếu không giải mã được bytes
+    }
+
     switch (response.statusCode) {
       case 200:
       case 201:
-        return jsonDecode(response.body);
+        return jsonDecode(responseBodyString);
       case 204:
         return null;
       case 400:
-        // Lỗi dữ liệu không hợp lệ (Key mismatch Nghĩa gặp lúc nãy)
-        throw Exception('Dữ liệu gửi lên không hợp lệ (400): ${response.body}');
+        try {
+          final errBody = jsonDecode(responseBodyString);
+          throw Exception(errBody['message'] ?? 'Dữ liệu không hợp lệ (400)');
+        } catch (_) {
+          throw Exception('Dữ liệu gửi lên không hợp lệ (400): $responseBodyString');
+        }
       case 401:
-        // Lỗi chưa đăng nhập hoặc token sai
-        throw Exception(
-          'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại (401)',
-        );
+        throw Exception('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại (401)');
       case 403:
         throw Exception('Bạn không có quyền thực hiện chức năng này (403)');
       case 500:
-        throw Exception(
-          'Lỗi hệ thống Backend (500). Nghĩa hãy kiểm tra Visual Studio Output!',
-        );
+        try {
+          // Giải mã JSON lỗi từ C# trả về (gồm message, error, detail)
+          final errBody = jsonDecode(responseBodyString);
+          
+          // Ưu tiên lấy 'detail' để xem chi tiết lỗi tầng SQL (Foreign Key, Null...)
+          String detailedError = errBody['detail'] ?? 
+                                 errBody['message'] ?? 
+                                 errBody['error'] ?? 
+                                 'Lỗi không xác định từ hệ thống';
+                                 
+          throw Exception(detailedError);
+        } catch (e) {
+          if (e is Exception) rethrow;
+          throw Exception('Lỗi hệ thống Backend (500): $responseBodyString');
+        }
       default:
         throw Exception('Lỗi không xác định: ${response.statusCode}');
     }

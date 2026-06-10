@@ -126,6 +126,18 @@ class _MaintenanceManagementScreenState
 
   Future<void> _completeTask(MaintenanceTask task) async {
     final cost = double.tryParse(_actualCostController.text) ?? 0;
+    
+    // Gọi API cập nhật trạng thái thiết bị thành Sẵn sàng trên backend SQL Server
+    try {
+      await ApiService().put(
+        '/ThietBi/${task.equipmentId}/TrangThai',
+        {'trangThai': 'SanSang'},
+      );
+    } catch (e) {
+      debugPrint('[API ERROR updating status to SanSang]: ${e.toString()}');
+      _showMessage('Lỗi đồng bộ trạng thái thiết bị lên máy chủ: $e');
+    }
+
     await _operationsService.updateMaintenanceTask(
       task.copyWith(
         status: 'Hoàn thành',
@@ -152,7 +164,7 @@ class _MaintenanceManagementScreenState
 
     if (!mounted) return;
     Navigator.pop(context);
-    _showMessage('Đã hoàn tất bảo trì');
+    _showMessage('Đã hoàn tất bảo trì thiết bị');
     await _loadData();
   }
 

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
 import 'package:nhom2_quanlythietbichothue/widgets/vietnamese_text_field.dart';
+import 'package:nhom2_quanlythietbichothue/models/damage_report.dart';
+import 'package:nhom2_quanlythietbichothue/models/maintenance_task.dart';
+import 'package:nhom2_quanlythietbichothue/services/operations_service.dart';
 
 class PhieuThuHoiScreen extends StatefulWidget {
   final Map<String, dynamic> equipment;
@@ -51,6 +54,46 @@ class _PhieuThuHoiScreenState extends State<PhieuThuHoiScreen> {
       };
 
       await ApiService().post('/PhieuThuHoi', body);
+
+      // Ghi nhận báo cáo hỏng hóc cục bộ nếu có hư hỏng
+      if (isDamaged) {
+        try {
+          final int eqId = int.tryParse(widget.equipment['maThietBi']?.toString() ?? '') ?? 0;
+          if (eqId != 0) {
+            final String eqName = widget.equipment['tenThietBi']?.toString() ?? 'Thiết bị #$eqId';
+
+            final report = DamageReport(
+              id: '${DateTime.now().microsecondsSinceEpoch}_$eqId',
+              equipmentId: eqId,
+              equipmentName: eqName,
+              reporterName: 'Nhân viên thu hồi (QR)',
+              severity: 'Trung bình',
+              description: _noteController.text.trim().isNotEmpty
+                  ? _noteController.text.trim()
+                  : 'Phát hiện hỏng hóc khi quét QR thu hồi.',
+              status: 'Mới',
+              reportedAt: DateTime.now(),
+            );
+            await OperationsService().saveDamageReport(report);
+
+            // Tự động chuyển qua Quản lý bảo trì bằng cách tạo Phiếu bảo trì chờ xử lý
+            final task = MaintenanceTask(
+              id: '${DateTime.now().microsecondsSinceEpoch}_task_$eqId',
+              equipmentId: eqId,
+              equipmentName: eqName,
+              damageReportId: report.id,
+              technicianName: 'Chưa phân công',
+              scheduledAt: DateTime.now(),
+              status: 'Chờ xử lý',
+              note: report.description,
+              estimatedCost: double.tryParse(_feeController.text) ?? 0,
+            );
+            await OperationsService().saveMaintenanceTask(task);
+          }
+        } catch (e) {
+          debugPrint('[LOCAL DAMAGE REPORT LOG ERROR]: ${e.toString()}');
+        }
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(

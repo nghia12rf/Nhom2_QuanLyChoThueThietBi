@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
-import 'package:nhom2_quanlythietbichothue/screens/return_equipment_screen.dart';
+import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
+import 'package:nhom2_quanlythietbichothue/screens/payment_return_screen.dart';
 
 class RentalListScreen extends StatefulWidget {
   const RentalListScreen({super.key});
@@ -10,139 +11,186 @@ class RentalListScreen extends StatefulWidget {
 }
 
 class _RentalListScreenState extends State<RentalListScreen> {
-  late Future<List<Map<String, dynamic>>> _contractsFuture;
+  List<Map<String, dynamic>> _contracts = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _contractsFuture = _fetchContracts();
+    _loadContracts();
   }
 
-  Future<List<Map<String, dynamic>>> _fetchContracts() async {
+  Future<void> _loadContracts() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
-      final response = await ApiService().get('/HopDong');
+      // Lấy danh sách hợp đồng cần quyết toán
+      final response = await ApiService().get('/HopDong?trangThai=DangHieuLuc,QuaHan,GiaHan');
+      
+      List<Map<String, dynamic>> loadedData = [];
       if (response is List) {
-        return response.cast<Map<String, dynamic>>();
+        loadedData = response.cast<Map<String, dynamic>>();
       } else if (response is Map && response['data'] != null) {
-        return (response['data'] as List).cast<Map<String, dynamic>>();
+        loadedData = (response['data'] as List).cast<Map<String, dynamic>>();
       }
-      return [];
+
+      if (!mounted) return;
+      setState(() {
+        _contracts = loadedData;
+        _isLoading = false;
+      });
     } catch (e) {
-      debugPrint('Lỗi tải hợp đồng: $e');
-      return [];
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Lỗi tải danh sách hợp đồng: $e';
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _contractsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Lỗi: ${snapshot.error}'));
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('Không có hợp đồng nào'));
-        }
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        final contracts = snapshot.data!;
-        return ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: contracts.length,
-          itemBuilder: (context, index) {
-            final contract = contracts[index];
-            final contractId = contract['maDinhDanhHopDong'] ?? 'N/A';
-            final customer = contract['tenKhachHang'] ?? 'Chưa rõ';
-            final status = contract['trangThai'] ?? '';
-            final isOverdue = status == 'QuaHan';
-            final endDate = contract['ngayKetThucDuKien'] ?? '';
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 12),
+            ElevatedButton(onPressed: _loadContracts, child: const Text('Thử lại'))
+          ],
+        ),
+      );
+    }
 
-            String equipmentNames = '';
-            if (contract['chiTiet'] != null) {
-              final chiTiet = contract['chiTiet'] as List;
-              equipmentNames = chiTiet
-                  .map((c) => c['tenThietBi'] ?? '')
-                  .join(', ');
-            }
+    if (_contracts.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _loadContracts,
+        child: ListView(
+          children: const [
+            SizedBox(height: 100),
+            Center(child: Text('Không có hợp đồng nào đang chờ xử lý')),
+          ],
+        ),
+      );
+    }
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade200),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          contractId,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isOverdue
-                                ? Colors.red.withOpacity(0.1)
-                                : Colors.green.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            isOverdue ? 'QUÁ HẠN' : 'ĐANG THUÊ',
-                            style: TextStyle(
-                              color: isOverdue ? Colors.red : Colors.green,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text('Khách hàng: $customer'),
-                    if (equipmentNames.isNotEmpty)
-                      Text('Thiết bị: $equipmentNames'),
-                    if (endDate.isNotEmpty)
-                      Text('Hạn trả: ${_formatDate(endDate)}'),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ReturnEquipmentScreen(
-                                contractId: contract['maHopDong'].toString(),
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.assignment_return_outlined),
-                        label: const Text('THỰC HIỆN THU HỒI'),
+    return RefreshIndicator(
+      onRefresh: _loadContracts,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _contracts.length,
+        itemBuilder: (context, index) {
+          final contract = _contracts[index];
+          final contractId = contract['maDinhDanhHopDong'] ?? 'N/A';
+          
+          final customer = contract['tenKhachHang'] ?? 
+                           (contract['maKhachHangNavigation'] != null 
+                               ? contract['maKhachHangNavigation']['tenCongTy'] 
+                               : 'Khách lẻ');
+                               
+          final status = contract['trangThai'] ?? '';
+          final isOverdue = status == 'QuaHan';
+          final endDate = contract['ngayKetThucDuKien'] ?? '';
+
+          String equipmentNames = '';
+          if (contract['chiTietHopDongs'] != null) {
+            final chiTiet = contract['chiTietHopDongs'] as List;
+            equipmentNames = chiTiet
+                .map((c) => c['maThietBiNavigation'] != null 
+                    ? c['maThietBiNavigation']['tenThietBi'] ?? '' 
+                    : '')
+                .where((name) => name.toString().isNotEmpty)
+                .join(', ');
+          }
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.grey.shade200),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        contractId,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
-                    ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isOverdue ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          isOverdue ? 'QUÁ HẠN' : 'ĐANG THUÊ',
+                          style: TextStyle(
+                            color: isOverdue ? Colors.red : Colors.green,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Khách hàng: $customer'),
+                  if (equipmentNames.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('Thiết bị: $equipmentNames', maxLines: 2, overflow: TextOverflow.ellipsis),
                   ],
-                ),
+                  if (endDate.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('Hạn trả: ${_formatDate(endDate)}'),
+                  ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isOverdue ? Colors.red : AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PaymentReturnScreen(contract: contract),
+                          ),
+                        );
+
+                        // Nếu quyết toán thành công (trả về true), tải lại danh sách
+                        if (result == true) {
+                          _loadContracts();
+                        }
+                      },
+                      icon: const Icon(Icons.monetization_on_outlined),
+                      label: const Text('THANH TOÁN & THU HỒI', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
-            );
-          },
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 

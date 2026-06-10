@@ -3,7 +3,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
 import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
 import 'package:nhom2_quanlythietbichothue/widgets/vietnamese_text_field.dart';
-// cho File (mobile) – web sẽ không dùng File
+import 'package:nhom2_quanlythietbichothue/models/damage_report.dart';
+import 'package:nhom2_quanlythietbichothue/models/maintenance_task.dart';
+import 'package:nhom2_quanlythietbichothue/services/operations_service.dart';
 
 class ReturnEquipmentScreen extends StatefulWidget {
   final String contractId;
@@ -62,6 +64,61 @@ class _ReturnEquipmentScreenState extends State<ReturnEquipmentScreen> {
         'phiHuHong': 0,
       };
       await ApiService().post('/PhieuThuHoi', body);
+      
+      // Ghi nhận báo cáo hỏng hóc cục bộ nếu có hư hỏng
+      if (_isDamaged) {
+        try {
+          final contract = await _fetchContractDetails();
+          final detailsList = contract['chiTiet'] ?? 
+                              contract['chiTietHopDongs'] ?? 
+                              contract['ChiTiet'] ?? 
+                              contract['ChiTietHopDongs'];
+          if (detailsList is List) {
+            for (var item in detailsList) {
+              final int eqId = int.tryParse(item['maThietBi']?.toString() ?? '') ?? 
+                              int.tryParse(item['MaThietBi']?.toString() ?? '') ?? 0;
+              if (eqId == 0) continue;
+              
+              final String eqName = item['tenThietBi']?.toString() ?? 
+                                    item['TenThietBi']?.toString() ?? 
+                                    item['maThietBiNavigation']?['tenThietBi']?.toString() ?? 
+                                    item['MaThietBiNavigation']?['TenThietBi']?.toString() ?? 
+                                    'Thiết bị #$eqId';
+              
+              final report = DamageReport(
+                id: '${DateTime.now().microsecondsSinceEpoch}_$eqId',
+                equipmentId: eqId,
+                equipmentName: eqName,
+                reporterName: 'Nhân viên thu hồi',
+                severity: 'Trung bình',
+                description: _damageNoteController.text.trim().isNotEmpty 
+                    ? _damageNoteController.text.trim() 
+                    : 'Phát hiện hỏng hóc khi thu hồi.',
+                status: 'Mới',
+                reportedAt: DateTime.now(),
+              );
+              await OperationsService().saveDamageReport(report);
+
+              // Tự động chuyển qua Quản lý bảo trì bằng cách tạo Phiếu bảo trì chờ xử lý
+              final task = MaintenanceTask(
+                id: '${DateTime.now().microsecondsSinceEpoch}_task_$eqId',
+                equipmentId: eqId,
+                equipmentName: eqName,
+                damageReportId: report.id,
+                technicianName: 'Chưa phân công',
+                scheduledAt: DateTime.now(),
+                status: 'Chờ xử lý',
+                note: report.description,
+                estimatedCost: 0,
+              );
+              await OperationsService().saveMaintenanceTask(task);
+            }
+          }
+        } catch (e) {
+          debugPrint('[LOCAL DAMAGE REPORT LOG ERROR]: ${e.toString()}');
+        }
+      }
+
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

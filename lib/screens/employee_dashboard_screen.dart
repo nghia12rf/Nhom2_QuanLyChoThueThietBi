@@ -8,6 +8,11 @@ import 'package:nhom2_quanlythietbichothue/screens/contract_form_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/phieu_thu_hoi_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/damage_report_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/contract_extension_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/customer_form_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/customer_detail_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/recall_history_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/payment_return_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/rental_list_screen.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -20,17 +25,38 @@ class EmployeeDashboardScreen extends StatefulWidget {
 class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = const [
-    DashboardView(),
-    EquipmentListScreen(),
-    RentalListScreen(),
-    CustomerListScreen(),
+  final List<Widget> _pages = [
+    const DashboardView(),
+    const EquipmentListScreen(),
+    const RentalListScreen(),
+    const CustomerListScreen(),
   ];
   // Hàm xử lý kết quả quét mã (hoặc nhập ID giả lập)
   // Trong class _EmployeeDashboardScreenState của employee_dashboard_screen.dart
   Future<void> _handleScanResult(String scannedId) async {
     try {
-      final equipment = await ApiService().get('/ThietBi/$scannedId');
+      Map<String, dynamic>? equipment;
+      // 1. Tìm theo mã định danh/serial trước qua ByCode
+      try {
+        final data = await ApiService().get('/ThietBi/ByCode/${scannedId.trim()}');
+        if (data is Map<String, dynamic>) {
+          equipment = data;
+        }
+      } catch (e) {
+        // Nếu không tìm thấy, và scannedId là số thì tìm theo ID gốc (maThietBi)
+        if (RegExp(r'^\d+$').hasMatch(scannedId.trim())) {
+          final data = await ApiService().get('/ThietBi/${scannedId.trim()}');
+          if (data is Map<String, dynamic>) {
+            equipment = data;
+          }
+        }
+      }
+
+      if (equipment == null) {
+        _showWarning('Không tìm thấy thiết bị mã $scannedId');
+        return;
+      }
+
       if (!mounted) return;
 
       final String status = equipment['trangThai'] ?? '';
@@ -49,7 +75,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => PhieuThuHoiScreen(equipment: equipment),
+            builder: (context) => PhieuThuHoiScreen(equipment: equipment!),
           ),
         );
       } else if (status == 'BaoTri') {
@@ -78,46 +104,45 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       // 1. BỔ SUNG DRAWER TẠI ĐÂY
       drawer: _buildEmployeeDrawer(context),
       body: _pages[_selectedIndex],
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          // 1. Thay vì mở Camera, mình hiện một cái Dialog nhập ID máy
-          String? debugId = await showDialog<String>(
-            context: context,
-            builder: (context) {
-              TextEditingController dbgCtrl = TextEditingController();
-              return AlertDialog(
-                title: const Text('Giả lập Quét QR (Debug Mode)'),
-                content: TextField(
-                  controller: dbgCtrl,
-                  decoration: const InputDecoration(
-                    hintText: "Nhập ID thiết bị (VD: 14, 15...)",
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Hủy'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, dbgCtrl.text),
-                    child: const Text('Xong'),
-                  ),
-                ],
-              );
-            },
-          );
+      floatingActionButton: _selectedIndex == 3
+          ? null // Ẩn nút Quét QR trên tab Khách hàng để tránh hiển thị 2 nút (Nút thêm khách và quét QR)
+          : FloatingActionButton(
+              onPressed: () async {
+                // 1. Thay vì mở Camera, mình hiện một cái Dialog nhập ID máy
+                String? debugId = await showDialog<String>(
+                  context: context,
+                  builder: (context) {
+                    TextEditingController dbgCtrl = TextEditingController();
+                    return AlertDialog(
+                      title: const Text('Giả lập Quét QR (Debug Mode)'),
+                      content: TextField(
+                        controller: dbgCtrl,
+                        decoration: const InputDecoration(
+                          hintText: "Nhập ID thiết bị (VD: 14, 15...)",
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Hủy'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, dbgCtrl.text),
+                          child: const Text('Xong'),
+                        ),
+                      ],
+                    );
+                  },
+                );
 
-          // 2. Sau khi nhập ID, chạy logic kiểm tra trạng thái y hệt như đã quét thật
-          if (debugId != null && debugId.isNotEmpty) {
-            _handleScanResult(
-              debugId,
-            ); // Gọi hàm xử lý logic chuyển trang Nghĩa vừa viết
-          }
-        },
-        icon: const Icon(Icons.qr_code_scanner),
-        label: const Text('Quét QR'),
-      ),
+                // 2. Sau khi nhập ID, chạy logic kiểm tra trạng thái y hệt như đã quét thật
+                if (debugId != null && debugId.isNotEmpty) {
+                  _handleScanResult(debugId);
+                }
+              },
+              child: const Icon(Icons.qr_code_scanner),
+            ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (i) => setState(() => _selectedIndex = i),
@@ -190,9 +215,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                     MaterialPageRoute(builder: (_) => const CameraScreen()),
                   );
                 }),
-                _drawerItem(Icons.history, 'Lịch sử bàn giao', () {
-                  // Chức năng phát triển sau
+                _drawerItem(Icons.history, 'Lịch sử thu hồi', () {
                   Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RecallHistoryScreen()),
+                  );
                 }),
                 _drawerItem(
                   Icons.report_problem_outlined,
@@ -352,11 +380,84 @@ class _DashboardViewState extends State<DashboardView> {
                   ? snapshot.data
                   : snapshot.data['data'] ?? [];
 
+              if (data.isEmpty) {
+                return const Card(
+                  margin: EdgeInsets.only(top: 8),
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(
+                      child: Text(
+                        'Không có hợp đồng nào đang hiệu lực hoặc quá hạn.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                );
+              }
+
               return Column(
-                children: data.map((c) {
-                  return ListTile(
-                    title: Text(c['tenKhachHang'] ?? ''),
-                    subtitle: Text(c['maDinhDanhHopDong'] ?? ''),
+                children: data.map<Widget>((c) {
+                  final String status = c['trangThai'] ?? '';
+                  final isOverdue = status == 'QuaHan';
+                  
+                  return Card(
+                    margin: const EdgeInsets.only(top: 8, bottom: 4),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: (isOverdue ? Colors.red : Colors.blue).withOpacity(0.1),
+                        child: Icon(
+                          isOverdue ? Icons.warning_amber_rounded : Icons.description_outlined,
+                          color: isOverdue ? Colors.red : Colors.blue,
+                        ),
+                      ),
+                      title: Text(
+                        c['tenKhachHang'] ?? 'Khách lẻ',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Số HĐ: ${c['maDinhDanhHopDong'] ?? ''}'),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: (isOverdue ? Colors.red : Colors.green).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  isOverdue ? 'Quá Hạn' : 'Đang thuê',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: isOverdue ? Colors.red : Colors.green,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PaymentReturnScreen(contract: c),
+                          ),
+                        );
+                        if (result == true) {
+                          setState(() {
+                            _futureContracts = ApiService().get(
+                              '/HopDong?trangThai=DangHieuLuc,QuaHan',
+                            );
+                            _futureTonKho = ApiService().get('/ThongKe/TonKho');
+                          });
+                        }
+                      },
+                    ),
                   );
                 }).toList(),
               );
@@ -438,115 +539,113 @@ class EquipmentListScreen extends StatelessWidget {
   }
 }
 
-////////////////////////////////////////////////////////
-/// RENTAL LIST (API)
-////////////////////////////////////////////////////////
 
-class RentalListScreen extends StatelessWidget {
-  const RentalListScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: ApiService().get('/HopDong'),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        List data = snapshot.data is List
-            ? snapshot.data
-            : snapshot.data['data'] ?? [];
-
-        return ListView.builder(
-          itemCount: data.length,
-          itemBuilder: (context, i) {
-            final c = data[i];
-            return ListTile(
-              title: Text(c['maDinhDanhHopDong'] ?? ''),
-              subtitle: Text(c['tenKhachHang'] ?? ''),
-            );
-          },
-        );
-      },
-    );
-  }
-}
 
 ////////////////////////////////////////////////////////
 /// CUSTOMER LIST (API)
 ////////////////////////////////////////////////////////
 
-class CustomerListScreen extends StatelessWidget {
+class CustomerListScreen extends StatefulWidget {
   const CustomerListScreen({super.key});
 
   @override
+  State<CustomerListScreen> createState() => _CustomerListScreenState();
+}
+
+class _CustomerListScreenState extends State<CustomerListScreen> {
+  List<dynamic> _customers = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCustomers();
+  }
+
+  Future<void> _fetchCustomers() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final data = await ApiService().get('/KhachHang');
+      if (!mounted) return;
+      setState(() {
+        _customers = (data is List) ? data : (data['data'] ?? []);
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<dynamic>(
-      future: ApiService().get('/KhachHang'),
-      builder: (context, snapshot) {
-        // Đang tải
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        // Lỗi
-        if (snapshot.hasError) {
-          return Center(child: Text('Lỗi: ${snapshot.error}'));
-        }
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CustomerFormScreen()),
+          );
+          if (result == true) _fetchCustomers();
+        },
+        child: const Icon(Icons.add),
+      ),
+      body: _customers.isEmpty
+          ? const Center(child: Text('Danh sách trống'))
+          : RefreshIndicator(
+              onRefresh: _fetchCustomers,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: _customers.length,
+                itemBuilder: (context, index) {
+                  final customer = _customers[index] as Map<String, dynamic>;
+                  final name = customer['tenKhachHang'] ?? customer['tenCongTy'] ?? 'Chưa rõ';
+                  final phone = customer['soDienThoai'] ?? '';
 
-        // Không có dữ liệu
-        if (!snapshot.hasData) {
-          return const Center(child: Text('Không có khách hàng'));
-        }
-
-        // Parse dữ liệu
-        List<dynamic> customers = [];
-        final data = snapshot.data;
-
-        if (data is List) {
-          customers = data;
-        } else if (data is Map && data['data'] != null) {
-          customers = data['data'] as List;
-        }
-
-        // Danh sách rỗng
-        if (customers.isEmpty) {
-          return const Center(child: Text('Danh sách trống'));
-        }
-
-        // Hiển thị danh sách
-        return ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: customers.length,
-          itemBuilder: (context, index) {
-            final customer = customers[index] as Map<String, dynamic>;
-
-            // SỬA TẠI ĐÂY: Đổi 'tenCongTy' thành 'tenKhachHang' (hoặc 'TenKhachHang' tùy Backend)
-            // Dựa vào các lỗi 400 trước đó, Backend của bạn thường dùng 'tenKhachHang'
-            final name =
-                customer['tenKhachHang'] ?? customer['tenCongTy'] ?? 'Chưa rõ';
-            final phone = customer['soDienThoai'] ?? '';
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: AppTheme.radiusMedium,
-                boxShadow: [AppTheme.shadowSmall],
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: AppTheme.radiusMedium,
+                      boxShadow: [AppTheme.shadowSmall],
+                    ),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: AppTheme.successColor.withOpacity(0.2),
+                        child: Icon(Icons.business, color: AppTheme.successColor),
+                      ),
+                      title: Text(name),
+                      subtitle: Text(phone),
+                      onTap: () async {
+                        final intId = customer['maKhachHang'];
+                        
+                        if (intId != null) {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CustomerDetailScreen(
+                                customerId: intId.toString(),
+                              ),
+                            ),
+                          );
+                          if (result == true) _fetchCustomers();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Không tìm thấy mã ID số của khách hàng này')),
+                          );
+                        }
+                      },
+                    ),
+                  );
+                },
               ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: AppTheme.successColor.withOpacity(0.2),
-                  child: Icon(Icons.business, color: AppTheme.successColor),
-                ),
-                title: Text(name),
-                subtitle: Text(phone),
-              ),
-            );
-          },
-        );
-      },
+            ),
     );
   }
 }

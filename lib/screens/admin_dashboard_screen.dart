@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
 import 'package:nhom2_quanlythietbichothue/widgets/common_widgets.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
+import 'package:nhom2_quanlythietbichothue/services/notification_service.dart';
+import 'package:nhom2_quanlythietbichothue/screens/notification_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/user_account_list_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/category_list_screen.dart';
 
 // Import các màn hình cần thiết
 import 'package:nhom2_quanlythietbichothue/screens/employee_dashboard_screen.dart'
@@ -14,6 +18,7 @@ import 'package:nhom2_quanlythietbichothue/screens/contract_form_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/statistics_report_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/damage_report_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/maintenance_management_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/recall_history_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/contract_extension_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -25,11 +30,20 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   late Future<Map<String, int>> _summaryFuture;
+  late Future<Map<String, int>> _notificationStatsFuture;
 
   @override
   void initState() {
     super.initState();
     _summaryFuture = _fetchSummaryData();
+    _notificationStatsFuture = NotificationService().getStatistics();
+  }
+
+  void _refreshData() {
+    setState(() {
+      _summaryFuture = _fetchSummaryData();
+      _notificationStatsFuture = NotificationService().getStatistics();
+    });
   }
 
   /// Lấy dữ liệu tổng quan từ API
@@ -78,16 +92,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Center(
-              child: Badge(
-                label: const Text('3'),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+              child: FutureBuilder<Map<String, int>>(
+                future: _notificationStatsFuture,
+                builder: (context, snapshot) {
+                  final unread = snapshot.data?['thongBaoChuaDoc'] ?? 0;
+
+                  return InkWell(
                     borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.notifications_none),
-                ),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationScreen(),
+                        ),
+                      );
+                      _refreshData();
+                    },
+                    child: Badge(
+                      isLabelVisible: unread > 0,
+                      label: Text(unread.toString()),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.notifications_none),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -374,6 +408,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
                 _buildDrawerItem(
                   context,
+                  Icons.category_outlined,
+                  'Quản lý danh mục thiết bị',
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CategoryListScreen(),
+                    ),
+                  ),
+                ),
+                _buildDrawerItem(
+                  context,
                   Icons.people_alt_outlined,
                   'Quản lý khách hàng',
                   () => Navigator.push(
@@ -385,6 +430,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ),
                         body: const CustomerListScreen(),
                       ),
+                    ),
+                  ),
+                ),
+                _buildDrawerItem(
+                  context,
+                  Icons.badge_outlined,
+                  'Quản lý nhân viên',
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const UserAccountListScreen(),
                     ),
                   ),
                 ),
@@ -433,6 +489,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     MaterialPageRoute(
                       builder: (context) =>
                           const ContractExtensionScreen(canApprove: true),
+                    ),
+                  ),
+                ),
+                _buildDrawerItem(
+                  context,
+                  Icons.history_outlined,
+                  'Lịch sử thu hồi',
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RecallHistoryScreen(),
                     ),
                   ),
                 ),
