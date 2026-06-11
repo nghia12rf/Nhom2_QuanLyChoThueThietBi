@@ -73,13 +73,16 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
               Navigator.pop(context);
 
               final body = {
+                'tenDanhMuc': textController.text.trim(),
                 'TenDanhMuc': textController.text.trim(),
+                'maDanhMuc': isEdit ? category['maDanhMuc'] : 0,
+                'MaDanhMuc': isEdit ? category['maDanhMuc'] : 0,
+                'moTa': isEdit ? (category['moTa'] ?? '') : '',
+                'MoTa': isEdit ? (category['moTa'] ?? '') : '',
               };
 
               try {
                 if (isEdit) {
-                  // Put yêu cầu truyền MaDanhMuc cả trên URL và Body trùng nhau
-                  body['MaDanhMuc'] = category['maDanhMuc'];
                   await ApiService().put('/DanhMucThietBi/${category['maDanhMuc']}', body);
                   _showSnackBar('Cập nhật danh mục thành công');
                 } else {

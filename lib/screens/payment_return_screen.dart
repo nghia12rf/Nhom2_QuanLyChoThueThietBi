@@ -55,22 +55,40 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
     }
   }
 
+  double _parseToDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0.0;
+  }
+
+  String _formatMoney(double value) {
+    if (value % 1 == 0) {
+      return '${value.toInt()} đ';
+    }
+    return '${value.toStringAsFixed(0)} đ';
+  }
+
   int get _calculatedOverdueDays {
-    final dueDateStr = widget.contract['ngayKetThucDuKien'];
+    final dueDateStr = widget.contract['ngayKetThucDuKien'] ?? widget.contract['NgayKetThucDuKien'];
     if (dueDateStr == null) return 0;
-    final dueDate = DateTime.parse(dueDateStr);
-    final days = DateTime.now().difference(dueDate).inDays;
+    final dueDate = DateTime.tryParse(dueDateStr.toString());
+    if (dueDate == null) return 0;
+
+    // Đưa cả 2 ngày về dạng chỉ có Ngày/Tháng/Năm (không có giờ phút giây) để tính số ngày lịch chính xác
+    final nowOnlyDate = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    final dueOnlyDate = DateTime(dueDate.year, dueDate.month, dueDate.day);
+
+    final days = nowOnlyDate.difference(dueOnlyDate).inDays;
     return days > 0 ? days : 0;
   }
 
   double get _estimatedOverdueFine => _calculatedOverdueDays * 100000.0;
 
   double get _totalEstimate {
-    double basePrice = (widget.contract['tongTien'] ?? 0).toDouble();
-    double deposit = (widget.contract['tienCoc'] ?? 0).toDouble();
+    double basePrice = _parseToDouble(widget.contract['tongTien'] ?? widget.contract['TongTien']);
+    double deposit = _parseToDouble(widget.contract['tienCoc'] ?? widget.contract['TienCoc']);
     double damageFine = double.tryParse(_phiHuHongController.text) ?? 0;
-    double total = basePrice + _estimatedOverdueFine + damageFine - deposit;
-    return total > 0 ? total : 0;
+    return basePrice + _estimatedOverdueFine + damageFine - deposit;
   }
 
   Future<void> _submitPayment() async {
@@ -274,7 +292,7 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Hợp đồng số: ${c['maDinhDanhHopDong']}',
+                      'Hợp đồng số: ${c['maDinhDanhHopDong'] ?? c['MaDinhDanhHopDong'] ?? ''}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -283,11 +301,11 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
                     const Divider(),
                     _buildRowInfo(
                       'Tiền thuê tạm tính ban đầu:',
-                      '${c['tongTien']} đ',
+                      _formatMoney(_parseToDouble(c['tongTien'] ?? c['TongTien'])),
                     ),
                     _buildRowInfo(
                       'Tiền đặt cọc (Khấu trừ):',
-                      '- ${c['tienCoc'] ?? 0} đ',
+                      '- ${_formatMoney(_parseToDouble(c['tienCoc'] ?? c['TienCoc']))}',
                     ),
                     _buildRowInfo(
                       'Số ngày quá hạn:',
@@ -296,8 +314,61 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
                     ),
                     _buildRowInfo(
                       'Tiền phạt trễ hạn dự tính:',
-                      '$_estimatedOverdueFine đ',
+                      _formatMoney(_estimatedOverdueFine),
                       color: _estimatedOverdueFine > 0 ? Colors.red : null,
+                    ),
+                    Builder(
+                      builder: (context) {
+                        final detailsList = c['chiTiet'] ??
+                            c['chiTietHopDongs'] ??
+                            c['ChiTiet'] ??
+                            c['ChiTietHopDongs'];
+                        if (detailsList != null && detailsList is List && detailsList.isNotEmpty) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Divider(height: 24),
+                              const Text(
+                                'Danh sách thiết bị thuê:',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                              const SizedBox(height: 8),
+                              ...detailsList.map<Widget>((item) {
+                                final int eqId = int.tryParse(item['maThietBi']?.toString() ?? '') ??
+                                    int.tryParse(item['MaThietBi']?.toString() ?? '') ?? 0;
+                                final String eqName = item['tenThietBi']?.toString() ??
+                                    item['TenThietBi']?.toString() ??
+                                    item['maThietBiNavigation']?['tenThietBi']?.toString() ??
+                                    item['MaThietBiNavigation']?['TenThietBi']?.toString() ??
+                                    'Thiết bị #$eqId';
+                                final double price = _parseToDouble(item['giaThueThoiDiem'] ?? item['GiaThueThoiDiem']);
+                                
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.check_circle_outline, size: 16, color: AppTheme.primaryColor),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          eqName,
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      ),
+                                      if (price > 0)
+                                        Text(
+                                          _formatMoney(price),
+                                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ],
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }
                     ),
                   ],
                 ),
@@ -384,30 +455,50 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.shade200),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'TỔNG SỐ TIỀN THU THỰC TẾ:',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    '$_totalEstimate đ',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
+            Builder(
+              builder: (context) {
+                final total = _totalEstimate;
+                final isRefund = total < 0;
+                final displayAmount = _formatMoney(total.abs());
+                
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isRefund 
+                        ? Colors.blue.shade50 
+                        : (total > 0 ? Colors.red.shade50 : Colors.green.shade50),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isRefund 
+                          ? Colors.blue.shade200 
+                          : (total > 0 ? Colors.red.shade200 : Colors.green.shade200),
                     ),
                   ),
-                ],
-              ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isRefund 
+                            ? 'TIỀN HOÀN TRẢ LẠI KHÁCH:' 
+                            : (total > 0 ? 'KHÁCH CẦN ĐÓNG THÊM:' : 'QUYẾT TOÁN HÒA VỐN:'),
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        isRefund 
+                            ? '- $displayAmount' 
+                            : (total > 0 ? '+ $displayAmount' : '0 đ'),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isRefund 
+                              ? Colors.blue.shade800 
+                              : (total > 0 ? Colors.red.shade800 : Colors.green.shade800),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
             ),
             const SizedBox(height: 32),
             SizedBox(

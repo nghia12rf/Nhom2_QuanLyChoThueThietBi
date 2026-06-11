@@ -13,6 +13,7 @@ import 'package:nhom2_quanlythietbichothue/screens/customer_detail_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/recall_history_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/payment_return_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/rental_list_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/user_guide_screen.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -250,6 +251,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 }),
                 _drawerItem(Icons.help_outline, 'Hướng dẫn sử dụng', () {
                   Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UserGuideScreen(),
+                    ),
+                  );
                 }),
                 const Divider(),
                 _drawerItem(Icons.settings_outlined, 'Cài đặt', () {

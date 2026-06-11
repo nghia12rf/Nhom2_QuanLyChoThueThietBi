@@ -1,5 +1,6 @@
 // lib/services/api_service.dart
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../utils/constants.dart';
 import './storage_service.dart';
@@ -53,6 +54,7 @@ class ApiService {
   Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
     try {
       final headers = await _getHeaders();
+      debugPrint('POST Request: ${ApiConstants.baseUrl}$endpoint, body: ${jsonEncode(body)}');
       final response = await http.post(
         Uri.parse('${ApiConstants.baseUrl}$endpoint'),
         headers: headers,
@@ -60,6 +62,7 @@ class ApiService {
       );
       return _handleResponse(response);
     } catch (e) {
+      debugPrint('POST Error for $endpoint: $e');
       throw Exception('Lỗi kết nối (POST): $e');
     }
   }
@@ -68,6 +71,7 @@ class ApiService {
   Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
     try {
       final headers = await _getHeaders();
+      debugPrint('PUT Request: ${ApiConstants.baseUrl}$endpoint, body: ${jsonEncode(body)}');
       final response = await http.put(
         Uri.parse('${ApiConstants.baseUrl}$endpoint'),
         headers: headers,
@@ -75,6 +79,7 @@ class ApiService {
       );
       return _handleResponse(response);
     } catch (e) {
+      debugPrint('PUT Error for $endpoint: $e');
       throw Exception('Lỗi kết nối (PUT): $e');
     }
   }
@@ -156,7 +161,7 @@ class ApiService {
           throw Exception('Lỗi hệ thống Backend (500): $responseBodyString');
         }
       default:
-        throw Exception('Lỗi không xác định: ${response.statusCode}');
+        throw Exception('Lỗi không xác định (${response.statusCode}): $responseBodyString');
     }
   }
 }
