@@ -297,7 +297,7 @@ class _UserAccountListScreenState extends State<UserAccountListScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         scrollDirection: Axis.horizontal,
         itemCount: _filters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final item = _filters[index];
           final isSelected = _filter == item['value'];

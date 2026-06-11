@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
 import 'package:nhom2_quanlythietbichothue/widgets/vietnamese_text_field.dart';
 import 'package:nhom2_quanlythietbichothue/models/damage_report.dart';
@@ -20,6 +21,38 @@ class _PhieuThuHoiScreenState extends State<PhieuThuHoiScreen> {
   Map<String, dynamic>? contractInfo;
   final TextEditingController _noteController = TextEditingController();
   final TextEditingController _feeController = TextEditingController(text: '0');
+  final List<String> _imageUrls = [];
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    _feeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _captureAndUpload() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 70,
+      );
+      if (image == null) return;
+
+      final imageUrl = await ApiService().uploadImage(image.path);
+      if (imageUrl.isNotEmpty) {
+        setState(() {
+          _imageUrls.add(imageUrl);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi chụp ảnh: $e')));
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -51,6 +84,7 @@ class _PhieuThuHoiScreenState extends State<PhieuThuHoiScreen> {
         "coHuHong": isDamaged,
         "phiHuHong": double.tryParse(_feeController.text) ?? 0,
         "ghiChuHuHong": _noteController.text,
+        "danhSachAnhHuHong": _imageUrls.join(';'),
       };
 
       await ApiService().post('/PhieuThuHoi', body);
@@ -141,6 +175,33 @@ class _PhieuThuHoiScreenState extends State<PhieuThuHoiScreen> {
                     labelText: 'Mô tả hư hỏng',
                     maxLines: 3,
                   ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _captureAndUpload,
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('Chụp ảnh minh chứng hư hỏng'),
+                  ),
+                  if (_imageUrls.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: _imageUrls.map((url) => ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          url,
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 80,
+                            height: 80,
+                            color: Colors.grey[200],
+                            child: const Icon(Icons.broken_image, color: Colors.grey),
+                          ),
+                        ),
+                      )).toList(),
+                    ),
+                  ]
                 ],
                 const SizedBox(height: 30),
                 ElevatedButton(

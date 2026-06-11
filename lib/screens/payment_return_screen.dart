@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
 import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
 import 'package:nhom2_quanlythietbichothue/models/damage_report.dart';
@@ -16,9 +17,43 @@ class PaymentReturnScreen extends StatefulWidget {
 
 class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
   bool _coHuHong = false;
-  final TextEditingController _phiHuHongController = TextEditingController(text: '0');
+  final TextEditingController _phiHuHongController = TextEditingController(
+    text: '0',
+  );
   final TextEditingController _ghiChuController = TextEditingController();
   bool _isSubmitting = false;
+  final List<String> _imageUrls = [];
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void dispose() {
+    _phiHuHongController.dispose();
+    _ghiChuController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _captureAndUpload() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 70,
+      );
+      if (image == null) return;
+
+      final imageUrl = await ApiService().uploadImage(image.path);
+      if (imageUrl.isNotEmpty) {
+        setState(() {
+          _imageUrls.add(imageUrl);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi chụp ảnh: $e')));
+      }
+    }
+  }
 
   int get _calculatedOverdueDays {
     final dueDateStr = widget.contract['ngayKetThucDuKien'];
@@ -42,12 +77,17 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
     setState(() => _isSubmitting = true);
 
     // Ép kiểu an toàn để lấy mã hợp đồng gốc
-    final int rawContractId = int.tryParse(widget.contract['maHopDong']?.toString() ?? '') ?? 
-                              int.tryParse(widget.contract['MaHopDong']?.toString() ?? '') ?? 0;
+    final int rawContractId =
+        int.tryParse(widget.contract['maHopDong']?.toString() ?? '') ??
+        int.tryParse(widget.contract['MaHopDong']?.toString() ?? '') ??
+        0;
 
     if (rawContractId == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lỗi: Không tìm thấy mã hợp đồng hợp lệ!'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Lỗi: Không tìm thấy mã hợp đồng hợp lệ!'),
+          backgroundColor: Colors.red,
+        ),
       );
       setState(() => _isSubmitting = false);
       return;
@@ -59,45 +99,49 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
       'coHuHong': _coHuHong,
       'phiHuHong': double.tryParse(_phiHuHongController.text) ?? 0.0,
       'ghiChuHuHong': _coHuHong ? _ghiChuController.text.trim() : '',
-      'danhSachAnhHuHong': ''
+      'danhSachAnhHuHong': _imageUrls.join(';'),
     };
 
     try {
       // Thực hiện gọi API POST sang C#
       final res = await ApiService().post('/PhieuThuHoi', body);
-      
+
       // Ghi nhận báo cáo hỏng hóc cục bộ nếu có hư hỏng
       if (_coHuHong) {
         try {
-          final detailsList = widget.contract['chiTiet'] ?? 
-                              widget.contract['chiTietHopDongs'] ?? 
-                              widget.contract['ChiTiet'] ?? 
-                              widget.contract['ChiTietHopDongs'];
+          final detailsList =
+              widget.contract['chiTiet'] ??
+              widget.contract['chiTietHopDongs'] ??
+              widget.contract['ChiTiet'] ??
+              widget.contract['ChiTietHopDongs'];
           if (detailsList is List) {
             for (var item in detailsList) {
-              final int eqId = int.tryParse(item['maThietBi']?.toString() ?? '') ?? 
-                              int.tryParse(item['MaThietBi']?.toString() ?? '') ?? 0;
+              final int eqId =
+                  int.tryParse(item['maThietBi']?.toString() ?? '') ??
+                  int.tryParse(item['MaThietBi']?.toString() ?? '') ??
+                  0;
               if (eqId == 0) continue;
-              
-              final String eqName = item['tenThietBi']?.toString() ?? 
-                                    item['TenThietBi']?.toString() ?? 
-                                    item['maThietBiNavigation']?['tenThietBi']?.toString() ?? 
-                                    item['MaThietBiNavigation']?['TenThietBi']?.toString() ?? 
-                                    'Thiết bị #$eqId';
-              
+
+              final String eqName =
+                  item['tenThietBi']?.toString() ??
+                  item['TenThietBi']?.toString() ??
+                  item['maThietBiNavigation']?['tenThietBi']?.toString() ??
+                  item['MaThietBiNavigation']?['TenThietBi']?.toString() ??
+                  'Thiết bị #$eqId';
+
               final report = DamageReport(
                 id: '${DateTime.now().microsecondsSinceEpoch}_$eqId',
                 equipmentId: eqId,
                 equipmentName: eqName,
                 reporterName: 'Nhân viên thu hồi',
                 severity: 'Trung bình',
-                description: _ghiChuController.text.trim().isNotEmpty 
-                    ? _ghiChuController.text.trim() 
+                description: _ghiChuController.text.trim().isNotEmpty
+                    ? _ghiChuController.text.trim()
                     : 'Phát hiện hỏng hóc khi thu hồi hợp đồng.',
                 status: 'Mới',
                 reportedAt: DateTime.now(),
               );
-              
+
               await OperationsService().saveDamageReport(report);
 
               // Tự động chuyển qua Quản lý bảo trì bằng cách tạo Phiếu bảo trì chờ xử lý
@@ -112,7 +156,7 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
                 note: report.description,
                 estimatedCost: double.tryParse(_phiHuHongController.text) ?? 0,
               );
-              
+
               await OperationsService().saveMaintenanceTask(task);
             }
           }
@@ -128,26 +172,43 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Row(
             children: [
               Icon(Icons.check_circle, color: Colors.green, size: 30),
               SizedBox(width: 10),
-              Text('Quyết Toán Thành Công', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                'Quyết Toán Thành Công',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Mã phiếu thu: ${res['maPhieuThuHoi'] ?? res['MaPhieuThuHoi'] ?? ''}'),
-              Text('Số ngày trễ hạn: ${res['soNgayTre'] ?? res['SoNgayTre'] ?? 0} ngày'),
-              Text('Tiền phạt trễ hạn: ${res['tienPhatTre'] ?? res['TienPhatTre'] ?? 0} đ'),
-              Text('Phí đền bù hư hại: ${res['phiHuHong'] ?? res['PhiHuHong'] ?? 0} đ'),
+              Text(
+                'Mã phiếu thu: ${res['maPhieuThuHoi'] ?? res['MaPhieuThuHoi'] ?? ''}',
+              ),
+              Text(
+                'Số ngày trễ hạn: ${res['soNgayTre'] ?? res['SoNgayTre'] ?? 0} ngày',
+              ),
+              Text(
+                'Tiền phạt trễ hạn: ${res['tienPhatTre'] ?? res['TienPhatTre'] ?? 0} đ',
+              ),
+              Text(
+                'Phí đền bù hư hại: ${res['phiHuHong'] ?? res['PhiHuHong'] ?? 0} đ',
+              ),
               const Divider(height: 20),
               Text(
                 'TỔNG TIỀN ĐÃ THU: ${res['tongTienPhaiThanhToan'] ?? res['TongTienPhaiThanhToan'] ?? 0} đ',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 16),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                  fontSize: 16,
+                ),
               ),
             ],
           ),
@@ -155,24 +216,31 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context); // Đóng Dialog
-                Navigator.pop(context, true); // Trả về màn hình danh sách và load lại dữ liệu
+                Navigator.pop(
+                  context,
+                  true,
+                ); // Trả về màn hình danh sách và load lại dữ liệu
               },
               child: const Text('XÁC NHẬN ĐÓNG HỢP ĐỒNG'),
-            )
+            ),
           ],
         ),
       );
     } catch (e) {
       if (mounted) {
-        // Log chi tiết object lỗi ra tab Run/Console của IDE để theo dõi 
+        // Log chi tiết object lỗi ra tab Run/Console của IDE để theo dõi
         debugPrint("[FLUTTER CRITICAL ERROR]: ${e.toString()}");
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             // Hiển thị trực tiếp nội dung lỗi chi tiết để biết DB lỗi ở bảng nào
-            content: Text('Lỗi quyết toán: ${e.toString().replaceAll('Exception:', '').trim()}'), 
+            content: Text(
+              'Lỗi quyết toán: ${e.toString().replaceAll('Exception:', '').trim()}',
+            ),
             backgroundColor: AppTheme.errorColor,
-            duration: const Duration(seconds: 8), // Tăng thời gian hiển thị để kịp đọc lỗi
+            duration: const Duration(
+              seconds: 8,
+            ), // Tăng thời gian hiển thị để kịp đọc lỗi
             action: SnackBarAction(
               label: 'ĐÓNG',
               textColor: Colors.white,
@@ -197,51 +265,120 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
         child: Column(
           children: [
             Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Hợp đồng số: ${c['maDinhDanhHopDong']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(
+                      'Hợp đồng số: ${c['maDinhDanhHopDong']}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                     const Divider(),
-                    _buildRowInfo('Tiền thuê tạm tính ban đầu:', '${c['tongTien']} đ'),
-                    _buildRowInfo('Tiền đặt cọc (Khấu trừ):', '- ${c['tienCoc'] ?? 0} đ'),
-                    _buildRowInfo('Số ngày quá hạn:', '$_calculatedOverdueDays ngày', color: _calculatedOverdueDays > 0 ? Colors.red : null),
-                    _buildRowInfo('Tiền phạt trễ hạn dự tính:', '$_estimatedOverdueFine đ', color: _estimatedOverdueFine > 0 ? Colors.red : null),
+                    _buildRowInfo(
+                      'Tiền thuê tạm tính ban đầu:',
+                      '${c['tongTien']} đ',
+                    ),
+                    _buildRowInfo(
+                      'Tiền đặt cọc (Khấu trừ):',
+                      '- ${c['tienCoc'] ?? 0} đ',
+                    ),
+                    _buildRowInfo(
+                      'Số ngày quá hạn:',
+                      '$_calculatedOverdueDays ngày',
+                      color: _calculatedOverdueDays > 0 ? Colors.red : null,
+                    ),
+                    _buildRowInfo(
+                      'Tiền phạt trễ hạn dự tính:',
+                      '$_estimatedOverdueFine đ',
+                      color: _estimatedOverdueFine > 0 ? Colors.red : null,
+                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 16),
             Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Kiểm tra hư hại thiết bị ngoại quan', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text(
+                      'Kiểm tra hư hại thiết bị ngoại quan',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     SwitchListTile(
                       title: const Text('Có thiết bị hỏng hóc cần đền bù?'),
                       value: _coHuHong,
-                      activeColor: Colors.red,
+                      activeThumbColor: Colors.red,
                       onChanged: (val) => setState(() => _coHuHong = val),
                     ),
                     if (_coHuHong) ...[
                       TextField(
                         controller: _phiHuHongController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Số tiền đền bù hư hại (đ)', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Số tiền đền bù hư hại (đ)',
+                          border: OutlineInputBorder(),
+                        ),
                         onChanged: (val) => setState(() {}),
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _ghiChuController,
                         maxLines: 2,
-                        decoration: const InputDecoration(labelText: 'Mô tả chi tiết lỗi thiết bị', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          labelText: 'Mô tả chi tiết lỗi thiết bị',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
-                    ]
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _captureAndUpload,
+                        icon: const Icon(Icons.camera_alt),
+                        label: const Text('Chụp ảnh minh chứng hư hỏng'),
+                      ),
+                      if (_imageUrls.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children: _imageUrls
+                              .map(
+                                (url) => ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    url,
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                              width: 80,
+                                              height: 80,
+                                              color: Colors.grey[200],
+                                              child: const Icon(
+                                                Icons.broken_image,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
               ),
@@ -249,12 +386,26 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
             const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade200)),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.shade200),
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('TỔNG SỐ TIỀN THU THỰC TẾ:', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                  Text('$_totalEstimate đ', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                  const Text(
+                    'TỔNG SỐ TIỀN THU THỰC TẾ:',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '$_totalEstimate đ',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -263,13 +414,25 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
                 onPressed: _isSubmitting ? null : _submitPayment,
                 child: _isSubmitting
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('XÁC NHẬN ĐÃ THU TIỀN & NHẬN MÁY', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    : const Text(
+                        'XÁC NHẬN ĐÃ THU TIỀN & NHẬN MÁY',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -283,7 +446,10 @@ class _PaymentReturnScreenState extends State<PaymentReturnScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: TextStyle(color: Colors.grey.shade700)),
-          Text(value, style: TextStyle(fontWeight: FontWeight.w600, color: color)),
+          Text(
+            value,
+            style: TextStyle(fontWeight: FontWeight.w600, color: color),
+          ),
         ],
       ),
     );

@@ -27,6 +27,14 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
   bool isLoading = true;
   bool isSubmitting = false;
 
+  final TextEditingController _depositController = TextEditingController(text: '0');
+
+  @override
+  void dispose() {
+    _depositController.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -127,7 +135,7 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
         "maKhachHang": int.parse(selectedCustomerId!),
         "ngayBatDau": _startDate.toIso8601String(),
         "ngayKetThucDuKien": _endDate.toIso8601String(),
-        "tienCoc": 0, // Nghĩa có thể thêm ô nhập tiền cọc trên giao diện nhé
+        "tienCoc": double.tryParse(_depositController.text) ?? 0.0,
         "ghiChu": "Tạo từ App Nhân viên",
         // 🔥 Backend của Nghĩa dùng tên "chiTiet" (C# DTO)
         "chiTiet": selectedEquipmentIds.map((id) => {"maThietBi": id}).toList(),
@@ -216,7 +224,22 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
                 const SizedBox(height: 24),
 
                 const Text(
-                  '3. Chọn thiết bị (Máy đang rảnh)',
+                  '3. Số tiền đặt cọc (VNĐ)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _depositController,
+                  keyboardType: TextInputType.number,
+                  decoration: _inputDecoration(Icons.monetization_on_outlined).copyWith(
+                    hintText: 'Nhập số tiền đặt cọc',
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                const Text(
+                  '4. Chọn thiết bị (Máy đang rảnh)',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 8),
