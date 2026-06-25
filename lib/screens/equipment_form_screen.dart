@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
 
 class EquipmentFormScreen extends StatefulWidget {
@@ -21,6 +22,13 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
   bool _isCategoriesLoaded = false;
+
+  // Ảnh chính và Ảnh liên quan
+  final ImagePicker _picker = ImagePicker();
+  String? _mainImageUrl;
+  List<String> _relatedImageUrls = [];
+  bool _isUploadingMain = false;
+  bool _isUploadingRelated = false;
 
   // Controllers
   final _nameController = TextEditingController();
@@ -53,6 +61,49 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
       _weightController.text = data['trongLuong']?.toString() ?? '';
       _voltageController.text = data['dienAp']?.toString() ?? '';
       _selectedCategoryId = data['maDanhMuc']?.toString();
+      _mainImageUrl = data['hinhAnhUrl']?.toString();
+      final rImgs = data['anhLienQuan']?.toString();
+      if (rImgs != null && rImgs.isNotEmpty) {
+        _relatedImageUrls = rImgs.split(';').where((s) => s.isNotEmpty).toList();
+      }
+    }
+  }
+
+  Future<void> _pickAndUploadMainImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      if (image == null) return;
+      setState(() => _isUploadingMain = true);
+      final url = await ApiService().uploadImage(image.path);
+      setState(() {
+        _mainImageUrl = url;
+        _isUploadingMain = false;
+      });
+    } catch (e) {
+      debugPrint("Lỗi upload ảnh chính: $e");
+      setState(() => _isUploadingMain = false);
+      _showMessage("Lỗi tải ảnh chính: $e");
+    }
+  }
+
+  Future<void> _pickAndUploadRelatedImage() async {
+    if (_relatedImageUrls.length >= 3) {
+      _showMessage("Chỉ được tải lên tối đa 3 ảnh liên quan");
+      return;
+    }
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      if (image == null) return;
+      setState(() => _isUploadingRelated = true);
+      final url = await ApiService().uploadImage(image.path);
+      setState(() {
+        _relatedImageUrls.add(url);
+        _isUploadingRelated = false;
+      });
+    } catch (e) {
+      debugPrint("Lỗi upload ảnh liên quan: $e");
+      setState(() => _isUploadingRelated = false);
+      _showMessage("Lỗi tải ảnh liên quan: $e");
     }
   }
 
@@ -87,6 +138,112 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // === TẢI LÊN ẢNH CHÍNH VÀ ẢNH LIÊN QUAN ===
+              _buildSectionTitle('Hình ảnh thiết bị'),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Ảnh chính
+                  GestureDetector(
+                    onTap: _isUploadingMain ? null : _pickAndUploadMainImage,
+                    child: Container(
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: _isUploadingMain
+                          ? const Center(child: CircularProgressIndicator())
+                          : _mainImageUrl != null && _mainImageUrl!.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(11),
+                                  child: Image.network(_mainImageUrl!, fit: BoxFit.cover),
+                                )
+                              : const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.add_a_photo_outlined, color: Colors.grey, size: 30),
+                                    SizedBox(height: 4),
+                                    Text('Ảnh chính', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                  ],
+                                ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Ảnh liên quan (Tối đa 3 ảnh)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('3 Ảnh liên quan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey)),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            ...List.generate(3, (index) {
+                              final hasImage = index < _relatedImageUrls.length;
+                              final url = hasImage ? _relatedImageUrls[index] : '';
+                              return Expanded(
+                                child: Container(
+                                  height: 70,
+                                  margin: const EdgeInsets.only(right: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.grey.shade300),
+                                  ),
+                                  child: hasImage
+                                      ? Stack(
+                                          children: [
+                                            Positioned.fill(
+                                              child: ClipRRect(
+                                                borderRadius: BorderRadius.circular(7),
+                                                child: Image.network(url, fit: BoxFit.cover),
+                                              ),
+                                            ),
+                                            Positioned(
+                                              top: 2,
+                                              right: 2,
+                                              child: GestureDetector(
+                                                onTap: () {
+                                                  setState(() {
+                                                    _relatedImageUrls.removeAt(index);
+                                                  });
+                                                },
+                                                child: Container(
+                                                  decoration: const BoxDecoration(
+                                                    color: Colors.black54,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : index == _relatedImageUrls.length && !_isUploadingRelated
+                                          ? GestureDetector(
+                                              onTap: _pickAndUploadRelatedImage,
+                                              child: const Center(
+                                                child: Icon(Icons.add, color: Colors.grey),
+                                              ),
+                                            )
+                                          : _isUploadingRelated && index == _relatedImageUrls.length
+                                              ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
+                                              : const Center(child: Icon(Icons.image_outlined, color: Colors.grey, size: 20)),
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
               _buildSectionTitle('Thông tin chung'),
               _buildInput(
                 _nameController,
@@ -98,7 +255,7 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
 
               // === DANH MỤC THIẾT BỊ ===
               DropdownButtonFormField<String>(
-                value: _selectedCategoryId,
+                initialValue: _selectedCategoryId,
                 decoration: _inputDecoration(
                   'Danh mục thiết bị',
                   Icons.category,
@@ -241,6 +398,8 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
         'congSuat': _powerController.text.trim(),
         'trongLuong': _weightController.text.trim(),
         'dienAp': _voltageController.text.trim(),
+        'hinhAnhUrl': _mainImageUrl,
+        'anhLienQuan': _relatedImageUrls.join(';'),
         'trangThai': widget.isEdit
             ? (widget.initialData?['trangThai'] ?? 'SanSang')
             : 'SanSang',
@@ -335,5 +494,10 @@ class _EquipmentFormScreenState extends State<EquipmentFormScreen> {
     _weightController.dispose();
     _voltageController.dispose();
     super.dispose();
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }

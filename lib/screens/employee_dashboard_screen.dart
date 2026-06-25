@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
-import 'package:nhom2_quanlythietbichothue/widgets/common_widgets.dart';
 import 'package:nhom2_quanlythietbichothue/screens/equipment_detail_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/camera_screen.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
 import 'package:nhom2_quanlythietbichothue/models/equipment.dart';
 import 'package:nhom2_quanlythietbichothue/screens/contract_form_screen.dart';
 import 'package:nhom2_quanlythietbichothue/screens/phieu_thu_hoi_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/damage_report_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/contract_extension_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/customer_form_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/customer_detail_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/recall_history_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/payment_return_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/rental_list_screen.dart';
+import 'package:nhom2_quanlythietbichothue/screens/user_guide_screen.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -19,17 +26,40 @@ class EmployeeDashboardScreen extends StatefulWidget {
 class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = const [
-    DashboardView(),
-    EquipmentListScreen(),
-    RentalListScreen(),
-    CustomerListScreen(),
+  final List<Widget> _pages = [
+    const DashboardView(),
+    const EquipmentListScreen(),
+    const RentalListScreen(),
+    const CustomerListScreen(),
   ];
   // Hàm xử lý kết quả quét mã (hoặc nhập ID giả lập)
   // Trong class _EmployeeDashboardScreenState của employee_dashboard_screen.dart
   Future<void> _handleScanResult(String scannedId) async {
     try {
-      final equipment = await ApiService().get('/ThietBi/$scannedId');
+      Map<String, dynamic>? equipment;
+      // 1. Tìm theo mã định danh/serial trước qua ByCode
+      try {
+        final data = await ApiService().get(
+          '/ThietBi/ByCode/${scannedId.trim()}',
+        );
+        if (data is Map<String, dynamic>) {
+          equipment = data;
+        }
+      } catch (e) {
+        // Nếu không tìm thấy, và scannedId là số thì tìm theo ID gốc (maThietBi)
+        if (RegExp(r'^\d+$').hasMatch(scannedId.trim())) {
+          final data = await ApiService().get('/ThietBi/${scannedId.trim()}');
+          if (data is Map<String, dynamic>) {
+            equipment = data;
+          }
+        }
+      }
+
+      if (equipment == null) {
+        _showWarning('Không tìm thấy thiết bị mã $scannedId');
+        return;
+      }
+
       if (!mounted) return;
 
       final String status = equipment['trangThai'] ?? '';
@@ -48,7 +78,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => PhieuThuHoiScreen(equipment: equipment),
+            builder: (context) => PhieuThuHoiScreen(equipment: equipment!),
           ),
         );
       } else if (status == 'BaoTri') {
@@ -77,46 +107,45 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       // 1. BỔ SUNG DRAWER TẠI ĐÂY
       drawer: _buildEmployeeDrawer(context),
       body: _pages[_selectedIndex],
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          // 1. Thay vì mở Camera, mình hiện một cái Dialog nhập ID máy
-          String? debugId = await showDialog<String>(
-            context: context,
-            builder: (context) {
-              TextEditingController dbgCtrl = TextEditingController();
-              return AlertDialog(
-                title: const Text('Giả lập Quét QR (Debug Mode)'),
-                content: TextField(
-                  controller: dbgCtrl,
-                  decoration: const InputDecoration(
-                    hintText: "Nhập ID thiết bị (VD: 14, 15...)",
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Hủy'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, dbgCtrl.text),
-                    child: const Text('Xong'),
-                  ),
-                ],
-              );
-            },
-          );
+      floatingActionButton: _selectedIndex == 3
+          ? null // Ẩn nút Quét QR trên tab Khách hàng để tránh hiển thị 2 nút (Nút thêm khách và quét QR)
+          : FloatingActionButton(
+              onPressed: () async {
+                // 1. Thay vì mở Camera, mình hiện một cái Dialog nhập ID máy
+                String? debugId = await showDialog<String>(
+                  context: context,
+                  builder: (context) {
+                    TextEditingController dbgCtrl = TextEditingController();
+                    return AlertDialog(
+                      title: const Text('Giả lập Quét QR (Debug Mode)'),
+                      content: TextField(
+                        controller: dbgCtrl,
+                        decoration: const InputDecoration(
+                          hintText: "Nhập ID thiết bị (VD: 14, 15...)",
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Hủy'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, dbgCtrl.text),
+                          child: const Text('Xong'),
+                        ),
+                      ],
+                    );
+                  },
+                );
 
-          // 2. Sau khi nhập ID, chạy logic kiểm tra trạng thái y hệt như đã quét thật
-          if (debugId != null && debugId.isNotEmpty) {
-            _handleScanResult(
-              debugId,
-            ); // Gọi hàm xử lý logic chuyển trang Nghĩa vừa viết
-          }
-        },
-        icon: const Icon(Icons.qr_code_scanner),
-        label: const Text('Quét QR'),
-      ),
+                // 2. Sau khi nhập ID, chạy logic kiểm tra trạng thái y hệt như đã quét thật
+                if (debugId != null && debugId.isNotEmpty) {
+                  _handleScanResult(debugId);
+                }
+              },
+              child: const Icon(Icons.qr_code_scanner),
+            ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (i) => setState(() => _selectedIndex = i),
@@ -189,12 +218,45 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                     MaterialPageRoute(builder: (_) => const CameraScreen()),
                   );
                 }),
-                _drawerItem(Icons.history, 'Lịch sử bàn giao', () {
-                  // Chức năng phát triển sau
+                _drawerItem(Icons.history, 'Lịch sử thu hồi', () {
                   Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const RecallHistoryScreen(),
+                    ),
+                  );
+                }),
+                _drawerItem(
+                  Icons.report_problem_outlined,
+                  'Báo cáo hỏng hóc',
+                  () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DamageReportScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _drawerItem(Icons.event_repeat_outlined, 'Yêu cầu gia hạn', () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ContractExtensionScreen(),
+                    ),
+                  );
                 }),
                 _drawerItem(Icons.help_outline, 'Hướng dẫn sử dụng', () {
                   Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UserGuideScreen(),
+                    ),
+                  );
                 }),
                 const Divider(),
                 _drawerItem(Icons.settings_outlined, 'Cài đặt', () {
@@ -290,9 +352,9 @@ class _DashboardViewState extends State<DashboardView> {
                   final status = item['trangThai'] ?? '';
                   final count = (item['soLuong'] as num?)?.toInt() ?? 0;
 
-                  if (status == 'SanSang')
+                  if (status == 'SanSang') {
                     ready = count;
-                  else if (status == 'DangChoThue')
+                  } else if (status == 'DangChoThue')
                     rented = count;
                   else if (status == 'BaoTri')
                     maintenance = count;
@@ -329,11 +391,98 @@ class _DashboardViewState extends State<DashboardView> {
                   ? snapshot.data
                   : snapshot.data['data'] ?? [];
 
+              if (data.isEmpty) {
+                return const Card(
+                  margin: EdgeInsets.only(top: 8),
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(
+                      child: Text(
+                        'Không có hợp đồng nào đang hiệu lực hoặc quá hạn.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                );
+              }
+
               return Column(
-                children: data.map((c) {
-                  return ListTile(
-                    title: Text(c['tenKhachHang'] ?? ''),
-                    subtitle: Text(c['maDinhDanhHopDong'] ?? ''),
+                children: data.map<Widget>((c) {
+                  final String status = c['trangThai'] ?? '';
+                  final isOverdue = status == 'QuaHan';
+
+                  return Card(
+                    margin: const EdgeInsets.only(top: 8, bottom: 4),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: (isOverdue ? Colors.red : Colors.blue)
+                            .withOpacity(0.1),
+                        child: Icon(
+                          isOverdue
+                              ? Icons.warning_amber_rounded
+                              : Icons.description_outlined,
+                          color: isOverdue ? Colors.red : Colors.blue,
+                        ),
+                      ),
+                      title: Text(
+                        c['tenKhachHang'] ?? 'Khách lẻ',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Số HĐ: ${c['maDinhDanhHopDong'] ?? ''}'),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: (isOverdue ? Colors.red : Colors.green)
+                                      .withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  isOverdue ? 'Quá Hạn' : 'Đang thuê',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: isOverdue
+                                        ? Colors.red
+                                        : Colors.green,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      trailing: const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                PaymentReturnScreen(contract: c),
+                          ),
+                        );
+                        if (result == true) {
+                          setState(() {
+                            _futureContracts = ApiService().get(
+                              '/HopDong?trangThai=DangHieuLuc,QuaHan',
+                            );
+                            _futureTonKho = ApiService().get('/ThongKe/TonKho');
+                          });
+                        }
+                      },
+                    ),
                   );
                 }).toList(),
               );
@@ -372,80 +521,387 @@ class _DashboardViewState extends State<DashboardView> {
 /// EQUIPMENT LIST (GIỮ NGUYÊN API)
 ////////////////////////////////////////////////////////
 
-class EquipmentListScreen extends StatelessWidget {
+class EquipmentListScreen extends StatefulWidget {
   const EquipmentListScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: ApiService().get('/ThietBi'),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        List data = snapshot.data is List
-            ? snapshot.data
-            : snapshot.data['data'] ?? [];
-
-        List<Equipment> list = data
-            .map((e) => Equipment.fromJson(e as Map<String, dynamic>))
-            .toList();
-
-        return ListView.builder(
-          itemCount: list.length,
-          itemBuilder: (context, i) {
-            final e = list[i];
-            return ListTile(
-              title: Text(e.tenThietBi),
-              subtitle: Text('${e.giaThueNgay}đ'),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EquipmentDetailScreen(
-                    equipmentId: e.maThietBi.toString(),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+  State<EquipmentListScreen> createState() => _EquipmentListScreenState();
 }
 
-////////////////////////////////////////////////////////
-/// RENTAL LIST (API)
-////////////////////////////////////////////////////////
+class _EquipmentListScreenState extends State<EquipmentListScreen> {
+  List<dynamic> _allEquipments = [];
+  List<dynamic> _filteredEquipments = [];
+  List<dynamic> _categories = [];
+  bool _isLoading = true;
+  int? _selectedCategoryId;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
-class RentalListScreen extends StatelessWidget {
-  const RentalListScreen({super.key});
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchData() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final results = await Future.wait([
+        ApiService().get('/ThietBi'),
+        ApiService().get('/DanhMucThietBi'),
+      ]);
+
+      final equipData = results[0];
+      final catData = results[1];
+
+      if (!mounted) return;
+      setState(() {
+        _allEquipments = (equipData is List)
+            ? equipData
+            : (equipData['data'] ?? []);
+        _categories = (catData is List) ? catData : (catData['data'] ?? []);
+        _applyFilters();
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error fetching equipment list: $e');
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _applyFilters() {
+    setState(() {
+      _filteredEquipments = _allEquipments.where((e) {
+        final matchCategory =
+            _selectedCategoryId == null ||
+            e['maDanhMuc'] == _selectedCategoryId;
+        final matchQuery =
+            _searchQuery.isEmpty ||
+            (e['tenThietBi']?.toString().toLowerCase().contains(
+                  _searchQuery.toLowerCase(),
+                ) ??
+                false) ||
+            (e['maDinhDanhThietBi']?.toString().toLowerCase().contains(
+                  _searchQuery.toLowerCase(),
+                ) ??
+                false) ||
+            (e['soSeri']?.toString().toLowerCase().contains(
+                  _searchQuery.toLowerCase(),
+                ) ??
+                false);
+        return matchCategory && matchQuery;
+      }).toList();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: ApiService().get('/HopDong'),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        List data = snapshot.data is List
-            ? snapshot.data
-            : snapshot.data['data'] ?? [];
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            color: Colors.white,
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Tìm theo tên, mã hoặc số Seri...',
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppTheme.textSecondaryColor,
+                    ),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.clear,
+                              color: AppTheme.textSecondaryColor,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = '';
+                                _applyFilters();
+                              });
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: AppTheme.backgroundColor,
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 16,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppTheme.primaryColor,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  onChanged: (val) {
+                    setState(() {
+                      _searchQuery = val.trim();
+                      _applyFilters();
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 38,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _categories.length + 1,
+                    itemBuilder: (context, i) {
+                      final isAll = i == 0;
+                      final cat = isAll ? null : _categories[i - 1];
+                      final catId = isAll ? null : cat['maDanhMuc'] as int;
+                      final catName = isAll
+                          ? 'Tất cả'
+                          : cat['tenDanhMuc'] as String;
+                      final isSelected = _selectedCategoryId == catId;
 
-        return ListView.builder(
-          itemCount: data.length,
-          itemBuilder: (context, i) {
-            final c = data[i];
-            return ListTile(
-              title: Text(c['maDinhDanhHopDong'] ?? ''),
-              subtitle: Text(c['tenKhachHang'] ?? ''),
-            );
-          },
-        );
-      },
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(
+                            catName,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Colors.white
+                                  : AppTheme.textPrimaryColor,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              fontSize: 13,
+                            ),
+                          ),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedCategoryId = selected ? catId : null;
+                              _applyFilters();
+                            });
+                          },
+                          selectedColor: AppTheme.primaryColor,
+                          backgroundColor: AppTheme.backgroundColor,
+                          checkmarkColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? Colors.transparent
+                                  : AppTheme.dividerColor,
+                              width: 0.5,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _filteredEquipments.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 48,
+                          color: AppTheme.textSecondaryColor,
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'Không tìm thấy thiết bị nào',
+                          style: TextStyle(
+                            color: AppTheme.textSecondaryColor,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _fetchData,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: _filteredEquipments.length,
+                      itemBuilder: (context, i) {
+                        final eMap = _filteredEquipments[i];
+                        final e = Equipment.fromJson(
+                          eMap as Map<String, dynamic>,
+                        );
+
+                        Color statusColor;
+                        String statusText;
+                        switch (e.trangThai) {
+                          case 'SanSang':
+                            statusColor = AppTheme.successColor;
+                            statusText = 'Sẵn sàng';
+                            break;
+                          case 'DangChoThue':
+                            statusColor = AppTheme.warningColor;
+                            statusText = 'Đang thuê';
+                            break;
+                          case 'BaoTri':
+                            statusColor = AppTheme.errorColor;
+                            statusText = 'Bảo trì';
+                            break;
+                          case 'NgungSuDung':
+                            statusColor = AppTheme.textSecondaryColor;
+                            statusText = 'Ngừng dùng';
+                            break;
+                          default:
+                            statusColor = AppTheme.primaryColor;
+                            statusText = e.trangThai;
+                        }
+
+                        final code = eMap['maDinhDanhThietBi'] ?? 'Chưa có mã';
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: AppTheme.radiusMedium,
+                            boxShadow: const [AppTheme.shadowSmall],
+                            border: Border.all(
+                              color: AppTheme.dividerColor,
+                              width: 0.5,
+                            ),
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            leading: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: AppTheme.backgroundColor,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child:
+                                  (e.imageUrl != null && e.imageUrl!.isNotEmpty)
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        e.imageUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, _, _) =>
+                                            const Icon(
+                                              Icons.image,
+                                              color:
+                                                  AppTheme.textSecondaryColor,
+                                            ),
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.inventory_2_outlined,
+                                      color: AppTheme.primaryColor,
+                                    ),
+                            ),
+                            title: Text(
+                              e.tenThietBi,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Mã: $code',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppTheme.textSecondaryColor,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      '${e.giaThueNgay.toStringAsFixed(0)}đ/ngày',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.primaryColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: statusColor,
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Text(
+                                statusText,
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => EquipmentDetailScreen(
+                                    equipmentId: e.maThietBi.toString(),
+                                  ),
+                                ),
+                              );
+                              _fetchData();
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -454,76 +910,117 @@ class RentalListScreen extends StatelessWidget {
 /// CUSTOMER LIST (API)
 ////////////////////////////////////////////////////////
 
-class CustomerListScreen extends StatelessWidget {
+class CustomerListScreen extends StatefulWidget {
   const CustomerListScreen({super.key});
 
   @override
+  State<CustomerListScreen> createState() => _CustomerListScreenState();
+}
+
+class _CustomerListScreenState extends State<CustomerListScreen> {
+  List<dynamic> _customers = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCustomers();
+  }
+
+  Future<void> _fetchCustomers() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final data = await ApiService().get('/KhachHang');
+      if (!mounted) return;
+      setState(() {
+        _customers = (data is List) ? data : (data['data'] ?? []);
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<dynamic>(
-      future: ApiService().get('/KhachHang'),
-      builder: (context, snapshot) {
-        // Đang tải
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        // Lỗi
-        if (snapshot.hasError) {
-          return Center(child: Text('Lỗi: ${snapshot.error}'));
-        }
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundColor,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CustomerFormScreen()),
+          );
+          if (result == true) _fetchCustomers();
+        },
+        child: const Icon(Icons.add),
+      ),
+      body: _customers.isEmpty
+          ? const Center(child: Text('Danh sách trống'))
+          : RefreshIndicator(
+              onRefresh: _fetchCustomers,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: _customers.length,
+                itemBuilder: (context, index) {
+                  final customer = _customers[index] as Map<String, dynamic>;
+                  final name =
+                      customer['tenKhachHang'] ??
+                      customer['tenCongTy'] ??
+                      'Chưa rõ';
+                  final phone = customer['soDienThoai'] ?? '';
 
-        // Không có dữ liệu
-        if (!snapshot.hasData) {
-          return const Center(child: Text('Không có khách hàng'));
-        }
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: AppTheme.radiusMedium,
+                      boxShadow: [AppTheme.shadowSmall],
+                    ),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: AppTheme.successColor.withOpacity(0.2),
+                        child: Icon(
+                          Icons.business,
+                          color: AppTheme.successColor,
+                        ),
+                      ),
+                      title: Text(name),
+                      subtitle: Text(phone),
+                      onTap: () async {
+                        final intId = customer['maKhachHang'];
 
-        // Parse dữ liệu
-        List<dynamic> customers = [];
-        final data = snapshot.data;
-
-        if (data is List) {
-          customers = data;
-        } else if (data is Map && data['data'] != null) {
-          customers = data['data'] as List;
-        }
-
-        // Danh sách rỗng
-        if (customers.isEmpty) {
-          return const Center(child: Text('Danh sách trống'));
-        }
-
-        // Hiển thị danh sách
-        return ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: customers.length,
-          itemBuilder: (context, index) {
-            final customer = customers[index] as Map<String, dynamic>;
-
-            // SỬA TẠI ĐÂY: Đổi 'tenCongTy' thành 'tenKhachHang' (hoặc 'TenKhachHang' tùy Backend)
-            // Dựa vào các lỗi 400 trước đó, Backend của bạn thường dùng 'tenKhachHang'
-            final name =
-                customer['tenKhachHang'] ?? customer['tenCongTy'] ?? 'Chưa rõ';
-            final phone = customer['soDienThoai'] ?? '';
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: AppTheme.radiusMedium,
-                boxShadow: [AppTheme.shadowSmall],
+                        if (intId != null) {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CustomerDetailScreen(
+                                customerId: intId.toString(),
+                              ),
+                            ),
+                          );
+                          if (result == true) _fetchCustomers();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Không tìm thấy mã ID số của khách hàng này',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  );
+                },
               ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: AppTheme.successColor.withOpacity(0.2),
-                  child: Icon(Icons.business, color: AppTheme.successColor),
-                ),
-                title: Text(name),
-                subtitle: Text(phone),
-              ),
-            );
-          },
-        );
-      },
+            ),
     );
   }
 }

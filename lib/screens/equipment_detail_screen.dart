@@ -91,11 +91,21 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                     height: 250,
                     width: double.infinity,
                     color: Colors.blueGrey[100],
-                    child: const Icon(
-                      Icons.image,
-                      size: 100,
-                      color: Colors.white70,
-                    ),
+                    child: (eq['hinhAnhUrl']?.toString().isNotEmpty ?? false)
+                        ? Image.network(
+                            eq['hinhAnhUrl'].toString(),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => const Icon(
+                              Icons.image,
+                              size: 100,
+                              color: Colors.white70,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.image,
+                            size: 100,
+                            color: Colors.white70,
+                          ),
                   ),
                   Positioned(
                     bottom: 16,
@@ -113,6 +123,64 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                   ),
                 ],
               ),
+
+              // Ảnh liên quan (nếu có)
+              if (eq['anhLienQuan']?.toString().isNotEmpty ?? false) ...[
+                Builder(
+                  builder: (context) {
+                    final List<String> list = eq['anhLienQuan'].toString().split(';').where((s) => s.isNotEmpty).toList();
+                    if (list.isEmpty) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 12, left: 16, right: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Ảnh liên quan',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, fontSize: 13),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 80,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: list.length,
+                              itemBuilder: (context, idx) {
+                                return GestureDetector(
+                                  onTap: () {
+                                    // Xem ảnh phóng to
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => Dialog(
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(16),
+                                          child: Image.network(list[idx], fit: BoxFit.contain),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    width: 80,
+                                    margin: const EdgeInsets.only(right: 8),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.grey.shade300),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(7),
+                                      child: Image.network(list[idx], fit: BoxFit.cover),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                ),
+              ],
 
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -184,6 +252,71 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                           eq['trongLuong']?.toString() ?? 'Chưa cập nhật',
                       'Điện áp': eq['dienAp']?.toString() ?? 'Chưa cập nhật',
                     }),
+
+                    if (eq['trangThai'] == 'BaoTri') ...[
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: const Text(
+                            'XÁC NHẬN ĐÃ BẢO TRÌ XONG',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Xác nhận hoàn tất bảo trì'),
+                                content: Text('Bạn có chắc chắn thiết bị "${eq['tenThietBi']}" đã bảo trì xong và sẵn sàng cho thuê lại?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('HỦY'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('XÁC NHẬN'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true) {
+                              setState(() => loading = true);
+                              try {
+                                await ApiService().put(
+                                  '/ThietBi/${widget.equipmentId}/TrangThai',
+                                  {'trangThai': 'SanSang'},
+                                );
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Cập nhật trạng thái sẵn sàng thành công!')),
+                                  );
+                                  _loadDetail();
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Lỗi: $e')),
+                                  );
+                                  setState(() => loading = false);
+                                }
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 32),
                   ],

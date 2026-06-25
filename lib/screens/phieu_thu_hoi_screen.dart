@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
-import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
+import 'package:nhom2_quanlythietbichothue/widgets/vietnamese_text_field.dart';
+import 'package:nhom2_quanlythietbichothue/models/damage_report.dart';
+import 'package:nhom2_quanlythietbichothue/models/maintenance_task.dart';
+import 'package:nhom2_quanlythietbichothue/services/operations_service.dart';
 
 class PhieuThuHoiScreen extends StatefulWidget {
   final Map<String, dynamic> equipment;
@@ -17,6 +21,38 @@ class _PhieuThuHoiScreenState extends State<PhieuThuHoiScreen> {
   Map<String, dynamic>? contractInfo;
   final TextEditingController _noteController = TextEditingController();
   final TextEditingController _feeController = TextEditingController(text: '0');
+  final List<String> _imageUrls = [];
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    _feeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _captureAndUpload() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 70,
+      );
+      if (image == null) return;
+
+      final imageUrl = await ApiService().uploadImage(image.path);
+      if (imageUrl.isNotEmpty) {
+        setState(() {
+          _imageUrls.add(imageUrl);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi chụp ảnh: $e')));
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -48,9 +84,50 @@ class _PhieuThuHoiScreenState extends State<PhieuThuHoiScreen> {
         "coHuHong": isDamaged,
         "phiHuHong": double.tryParse(_feeController.text) ?? 0,
         "ghiChuHuHong": _noteController.text,
+        "danhSachAnhHuHong": _imageUrls.join(';'),
       };
 
       await ApiService().post('/PhieuThuHoi', body);
+
+      // Ghi nhận báo cáo hỏng hóc cục bộ nếu có hư hỏng
+      if (isDamaged) {
+        try {
+          final int eqId = int.tryParse(widget.equipment['maThietBi']?.toString() ?? '') ?? 0;
+          if (eqId != 0) {
+            final String eqName = widget.equipment['tenThietBi']?.toString() ?? 'Thiết bị #$eqId';
+
+            final report = DamageReport(
+              id: '${DateTime.now().microsecondsSinceEpoch}_$eqId',
+              equipmentId: eqId,
+              equipmentName: eqName,
+              reporterName: 'Nhân viên thu hồi (QR)',
+              severity: 'Trung bình',
+              description: _noteController.text.trim().isNotEmpty
+                  ? _noteController.text.trim()
+                  : 'Phát hiện hỏng hóc khi quét QR thu hồi.',
+              status: 'Mới',
+              reportedAt: DateTime.now(),
+            );
+            await OperationsService().saveDamageReport(report);
+
+            // Tự động chuyển qua Quản lý bảo trì bằng cách tạo Phiếu bảo trì chờ xử lý
+            final task = MaintenanceTask(
+              id: '${DateTime.now().microsecondsSinceEpoch}_task_$eqId',
+              equipmentId: eqId,
+              equipmentName: eqName,
+              damageReportId: report.id,
+              technicianName: 'Chưa phân công',
+              scheduledAt: DateTime.now(),
+              status: 'Chờ xử lý',
+              note: report.description,
+              estimatedCost: double.tryParse(_feeController.text) ?? 0,
+            );
+            await OperationsService().saveMaintenanceTask(task);
+          }
+        } catch (e) {
+          debugPrint('[LOCAL DAMAGE REPORT LOG ERROR]: ${e.toString()}');
+        }
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -93,13 +170,38 @@ class _PhieuThuHoiScreenState extends State<PhieuThuHoiScreen> {
                     ),
                     keyboardType: TextInputType.number,
                   ),
-                  TextField(
+                  VietnameseTextField(
                     controller: _noteController,
-                    decoration: const InputDecoration(
-                      labelText: 'Mô tả hư hỏng',
-                    ),
+                    labelText: 'Mô tả hư hỏng',
                     maxLines: 3,
                   ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _captureAndUpload,
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('Chụp ảnh minh chứng hư hỏng'),
+                  ),
+                  if (_imageUrls.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: _imageUrls.map((url) => ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          url,
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 80,
+                            height: 80,
+                            color: Colors.grey[200],
+                            child: const Icon(Icons.broken_image, color: Colors.grey),
+                          ),
+                        ),
+                      )).toList(),
+                    ),
+                  ]
                 ],
                 const SizedBox(height: 30),
                 ElevatedButton(

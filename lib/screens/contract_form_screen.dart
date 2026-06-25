@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nhom2_quanlythietbichothue/services/api_service.dart';
 import 'package:nhom2_quanlythietbichothue/models/equipment.dart';
-import 'package:nhom2_quanlythietbichothue/theme/app_theme.dart';
 
 class ContractFormScreen extends StatefulWidget {
   // THÊM: Biến nhận dữ liệu thiết bị từ Dashboard truyền sang
@@ -27,6 +26,14 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
 
   bool isLoading = true;
   bool isSubmitting = false;
+
+  final TextEditingController _depositController = TextEditingController(text: '0');
+
+  @override
+  void dispose() {
+    _depositController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -122,18 +129,61 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
     setState(() => isSubmitting = true);
 
     try {
+      final String contractDocId = "HD${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}";
+      final int rentalDays = _endDate.difference(_startDate).inDays <= 0 ? 1 : _endDate.difference(_startDate).inDays;
+
       final body = {
-        "maDinhDanhHopDong":
-            "HD${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}",
+        // PascalCase
+        "MaDinhDanhHopDong": contractDocId,
+        "MaKhachHang": int.parse(selectedCustomerId!),
+        "NgayBatDau": _startDate.toIso8601String(),
+        "NgayKetThucDuKien": _endDate.toIso8601String(),
+        "TienCoc": double.tryParse(_depositController.text) ?? 0.0,
+        "GhiChu": "Tạo từ App Nhân viên",
+        "TongTien": _calculateTotal(),
+        "TrangThai": "DangHieuLuc",
+        "ChiTietHopDongs": selectedEquipmentIds.map((id) {
+          final equip = availableEquipments.firstWhere((e) => e.maThietBi == id);
+          return {
+            "MaThietBi": id,
+            "GiaThueThoiDiem": equip.giaThueNgay,
+            "ThanhTien": equip.giaThueNgay * rentalDays,
+          };
+        }).toList(),
+        "ChiTiet": selectedEquipmentIds.map((id) {
+          final equip = availableEquipments.firstWhere((e) => e.maThietBi == id);
+          return {
+            "MaThietBi": id,
+            "GiaThueThoiDiem": equip.giaThueNgay,
+            "ThanhTien": equip.giaThueNgay * rentalDays,
+          };
+        }).toList(),
+
+        // camelCase
+        "maDinhDanhHopDong": contractDocId,
         "maKhachHang": int.parse(selectedCustomerId!),
         "ngayBatDau": _startDate.toIso8601String(),
         "ngayKetThucDuKien": _endDate.toIso8601String(),
-        "tienCoc": 0, // Nghĩa có thể thêm ô nhập tiền cọc trên giao diện nhé
+        "tienCoc": double.tryParse(_depositController.text) ?? 0.0,
         "ghiChu": "Tạo từ App Nhân viên",
-        // 🔥 Backend của Nghĩa dùng tên "chiTiet" (C# DTO)
-        "chiTiet": selectedEquipmentIds.map((id) => {"maThietBi": id}).toList(),
         "tongTien": _calculateTotal(),
         "trangThai": "DangHieuLuc",
+        "chiTietHopDongs": selectedEquipmentIds.map((id) {
+          final equip = availableEquipments.firstWhere((e) => e.maThietBi == id);
+          return {
+            "maThietBi": id,
+            "giaThueThoiDiem": equip.giaThueNgay,
+            "thanhTien": equip.giaThueNgay * rentalDays,
+          };
+        }).toList(),
+        "chiTiet": selectedEquipmentIds.map((id) {
+          final equip = availableEquipments.firstWhere((e) => e.maThietBi == id);
+          return {
+            "maThietBi": id,
+            "giaThueThoiDiem": equip.giaThueNgay,
+            "thanhTien": equip.giaThueNgay * rentalDays,
+          };
+        }).toList(),
       };
 
       await ApiService().post('/HopDong', body);
@@ -171,7 +221,7 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: selectedCustomerId,
+                  initialValue: selectedCustomerId,
                   hint: const Text('Chọn khách hàng thuê'),
                   decoration: _inputDecoration(Icons.business),
                   items: customers.map((c) {
@@ -217,7 +267,22 @@ class _ContractFormScreenState extends State<ContractFormScreen> {
                 const SizedBox(height: 24),
 
                 const Text(
-                  '3. Chọn thiết bị (Máy đang rảnh)',
+                  '3. Số tiền đặt cọc (VNĐ)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _depositController,
+                  keyboardType: TextInputType.number,
+                  decoration: _inputDecoration(Icons.monetization_on_outlined).copyWith(
+                    hintText: 'Nhập số tiền đặt cọc',
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                const Text(
+                  '4. Chọn thiết bị (Máy đang rảnh)',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 8),
